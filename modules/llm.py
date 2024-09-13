@@ -27,34 +27,55 @@ class ResponseGenerator:
         self.punctuation_pattern = re.compile('[、。！？]')
 
         # ChatGPTに入力する対話文脈
-        messages = []
+        self.messages = []
 
         # 過去の対話履歴を対話文脈に追加
         i = max(0, len(self.dialogue_history) - self.max_message_num_in_context)
-        messages.extend(self.dialogue_history[i:])
+        self.messages.extend(self.dialogue_history[i:])
 
-        # プロンプトおよび新しいユーザ発話を対話文脈に追加
-        if query:
-            messages.extend([
-                {'role': 'user', 'content': self.prompts['RESP']},
-                {'role': 'system', 'content': "OK"},
-                {'role': 'user', 'content': query}
-            ])
+        print(self.messages)
+
         # 新しいユーザ発話が存在せず自ら発話する場合のプロンプトを対話文脈に追加
-        else:
-            messages.extend([
-                {'role': 'user', 'content': prompts['TO']}
+        if query == None or query == '':
+           self.messages.extend([
+                {'role': 'user', 'content': "こんにちは"}
             ])
-
+        # プロンプトおよび新しいユーザ発話を対話文脈に追加
+        # else:
+        #      self.messages.extend([
+        #         {'role': 'user', 'content': query}
+        #     ])
+            
+        self.log(f"messages: {self.messages=}")
         self.log(f"Call ChatGPT: {query=}")
+        
+        # threadの初期化とリクエストの開始
+        self.thread = openai.beta.threads.create(
+            messages=self.messages
+        )
+
+        message = openai.beta.threads.messages.create(
+            thread_id=self.thread.id,
+            role="user",
+            content=query,
+        )
+
+        # ストリーミングリクエストの開始
+        self.stream = openai.beta.threads.runs.create(
+            assistant_id="asst_z2nd92qpkV3ktiTDMMwwZEnG",
+            thread_id=self.thread.id,
+            stream=True,
+            max_completion_tokens=self.max_tokens
+        )
 
         # ChatGPTに対話文脈を入力してストリーミング形式で応答の生成を開始
-        self.response = openai.ChatCompletion.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=self.max_tokens,
-            stream=True
-        )
+        # self.response = openai.chat.completions.create(
+        #     model=self.model,
+        #     messages=messages,
+        #     max_tokens=self.max_tokens,
+        #     stream=True
+        # )
+        
     
     # Dialogueのsend_response関数で呼び出され，応答の断片を順次返す
     def __next__(self):
@@ -80,19 +101,28 @@ class ResponseGenerator:
                 "action": action
             }
 
-        # ChatGPTの応答を順次パースして返す
-        for chunk in self.response:
-            chunk_message = chunk['choices'][0]['delta']
+        # for chunk in self.response:
+        #     if chunk.choices[0].delta.content is not None:
+        #         print(chunk.choices[0].delta.content, end="\n")
+        #     chunk_message = chunk.choices[0].delta
 
-            if 'content' in chunk_message.keys():
-                new_token = chunk_message.get('content')
+        #     if hasattr(chunk_message, 'content'):
+        #         new_token = chunk_message.content
+
+        # ChatGPTの応答を順次パースして返す
+       
+        for event in self.stream:
+            if event.event == "thread.message.delta" and event.data.delta.content:
+                new_token = event.data.delta.content[0].text.value
+                self.log(f"new_token: {new_token=}")
 
                 # 応答の断片を追加
-                if new_token != "/":
+                if new_token is not None and new_token != "/":
                     self.response_fragment += new_token
 
                 # 句読点で応答を分割
                 splits = self.punctuation_pattern.split(self.response_fragment, 1)
+                self.log(f"splits: {splits=}")
 
                 # 次のループのために残りの断片を保持
                 self.response_fragment = splits[-1]
@@ -107,10 +137,18 @@ class ResponseGenerator:
                     if self.response_fragment:
                         return {"phrase": self.response_fragment}
                     self.response_fragment = ''
-            else:
+
+                self.log(f"splited: {splits=}")
+
+            elif event.event == "thread.message.completed":
                 # ChatGPTの応答が完了した場合は残りの断片をパースして返す
-                if self.response_fragment:
-                    return _parse_split(self.response_fragment)
+                print(event.data.content[0].text.value)
+                
+                agent_move = event.data.content[0].text.value.split("/")
+                self.log(f"thread.message.completed: {agent_move=}")
+
+                if len(agent_move) > 1:
+                    return _parse_split(agent_move[1])
 
         raise StopIteration
     
@@ -151,7 +189,7 @@ class ResponseChatGPT():
 
 
 if __name__ == "__main__":
-    openai.api_key = '<enter your API key>'
+    openai.api_key = ''
 
     config = {'ChatGPT': {
         'max_tokens': 64,
@@ -160,14 +198,37 @@ if __name__ == "__main__":
     }}
 
     asr_timestamp = time.time()
-    query = '今日は良い天気だね'
-    dialogue_history = []
+    query = 'そうですか、作業療法はリハビリの一種です。'
+    dialogue_history = [
+        {'role': 'user', 'content': "こんにちは"},
+        {'role': 'assistant', 'content': "こんにちは。/0_平静,2_うなずく"},
+        {'role': 'user', 'content': "本日は作業療法を行います。作業療法について何かご存知ですか？"},
+        {'role': 'assistant', 'content': "いいえ、あまりよく知りません。/4_考え中,3_首をかしげる"},
+    ]
     prompts = {}
 
-    with open('./prompt/response.txt') as f:
-        prompts['RESP'] = f.read()
+    # with open('./prompt/response.txt') as f:
+    #     prompts['RESP'] = f.read()
 
     response_generator = ResponseGenerator(config, asr_timestamp, query, dialogue_history, prompts)
 
     for part in response_generator:
         response_generator.log(part)
+
+    ##############
+
+    time.sleep(0.5)
+
+    # dialogue_history2 = [
+    #     {'role': 'user', 'content': "こんにちは"},
+    #     {'role': 'assistant', 'content': "こんにちは"},
+    #     {'role': 'user', 'content': "本日は作業療法を行います。作業療法について何かご存知ですか？"},
+    #     {'role': 'assistant', 'content': "いいえ、あまりよく知りません。"},               
+    #     {'role': 'user', 'content': "そうですか、作業療法はリハビリの一種です。"},
+    #     {'role': 'assistant', 'content': "そうなんですね、知りませんでした。"},
+    # ]
+    # query = 'それでは早速始めていきますね。'
+    # response_generator2 = ResponseGenerator(config, asr_timestamp, query, dialogue_history2, prompts)
+
+    # for part in response_generator2:
+    #     response_generator.log(part)

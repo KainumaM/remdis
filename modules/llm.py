@@ -33,27 +33,19 @@ class ResponseGenerator:
         i = max(0, len(self.dialogue_history) - self.max_message_num_in_context)
         self.messages.extend(self.dialogue_history[i:])
 
-        print(self.messages)
-
         # 新しいユーザ発話が存在せず自ら発話する場合のプロンプトを対話文脈に追加
         if query == None or query == '':
-           self.messages.extend([
-                {'role': 'user', 'content': "こんにちは"}
-            ])
-        # プロンプトおよび新しいユーザ発話を対話文脈に追加
-        # else:
-        #      self.messages.extend([
-        #         {'role': 'user', 'content': query}
-        #     ])
-            
+           query = "(沈黙)"
+
         self.log(f"messages: {self.messages=}")
         self.log(f"Call ChatGPT: {query=}")
         
-        # threadの初期化とリクエストの開始
+        # threadの初期化と対話履歴の追加
         self.thread = openai.beta.threads.create(
             messages=self.messages
         )
 
+        # ユーザ発話の追加
         message = openai.beta.threads.messages.create(
             thread_id=self.thread.id,
             role="user",
@@ -67,15 +59,6 @@ class ResponseGenerator:
             stream=True,
             max_completion_tokens=self.max_tokens
         )
-
-        # ChatGPTに対話文脈を入力してストリーミング形式で応答の生成を開始
-        # self.response = openai.chat.completions.create(
-        #     model=self.model,
-        #     messages=messages,
-        #     max_tokens=self.max_tokens,
-        #     stream=True
-        # )
-        
     
     # Dialogueのsend_response関数で呼び出され，応答の断片を順次返す
     def __next__(self):
@@ -100,17 +83,8 @@ class ResponseGenerator:
                 "expression": expression,
                 "action": action
             }
-
-        # for chunk in self.response:
-        #     if chunk.choices[0].delta.content is not None:
-        #         print(chunk.choices[0].delta.content, end="\n")
-        #     chunk_message = chunk.choices[0].delta
-
-        #     if hasattr(chunk_message, 'content'):
-        #         new_token = chunk_message.content
-
+  
         # ChatGPTの応答を順次パースして返す
-       
         for event in self.stream:
             if event.event == "thread.message.delta" and event.data.delta.content:
                 new_token = event.data.delta.content[0].text.value

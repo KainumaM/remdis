@@ -138,22 +138,21 @@ class TextVAP(RemdisModule):
         ]
         
         # ChatGPTにプロンプトを入力してストリーミング形式で応答の生成を開始
-        self.response = openai.ChatCompletion.create(
+        self.response = openai.chat.completions.create(
             model=self.model,
             messages=messages,
             max_tokens=self.max_tokens,
             stream=True
         )
 
-        # ChatGPTの応答を保持しおく変数
+        # ChatGPTの応答を保持しておく変数
         current_completion_line = ""
         nonverbal_backchannel = {}
 
         # ChatGPTの応答を順次パース
         for chunk in self.response:
-            chunk_message = chunk['choices'][0]['delta']
-            if 'content' in chunk_message.keys():
-                new_token = chunk_message.get('content')
+            if hasattr(chunk.choices[0], 'delta') and hasattr(chunk.choices[0].delta, 'content'):
+                new_token = chunk.choices[0].delta.content
 
                 if not new_token:
                     continue

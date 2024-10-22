@@ -1,0 +1,99 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run input.py",
+            "type": "shell",
+            "command": "python input.py",
+            "problemMatcher": [],
+            "group": "build",
+            "options": {
+                "cwd": "${workspaceFolder}/modules"
+            }
+        },
+        {
+            "label": "Run audio_vap.py",
+            "type": "shell",
+            "command": "python audio_vap.py",
+            "problemMatcher": [],
+            "group": "build",
+            "options": {
+                "cwd": "${workspaceFolder}/modules"
+            }
+        },
+        {
+            "label": "Run vad_vap.py",
+            "type": "shell",
+            "command": "python vad_vap.py",
+            "problemMatcher": [],
+            "group": "build",
+            "options": {
+                "cwd": "${workspaceFolder}/modules"
+            }
+        },
+        {
+            "label": "Run asr.py",
+            "type": "shell",
+            "command": "python asr.py",
+            "problemMatcher": [],
+            "group": "build",
+            "options": {
+                "cwd": "${workspaceFolder}/modules"
+            }
+        },
+        {
+            "label": "Run tts.py",
+            "type": "shell",
+            "command": "python tts.py",
+            "problemMatcher": [],
+            "group": "build",
+            "options": {
+                "cwd": "${workspaceFolder}/modules"
+            }
+        },
+        {
+            "label": "Run dialogue.py",
+            "type": "shell",
+            "command": "python dialogue.py",
+            "problemMatcher": [],
+            "group": "build",
+            "options": {
+                "cwd": "${workspaceFolder}/modules"
+            }
+        },
+        {
+            "label": "Run dialogue_vad.py",
+            "type": "shell",
+            "command": "python dialogue_vad.py",
+            "problemMatcher": [],
+            "group": "build",
+            "options": {
+                "cwd": "${workspaceFolder}/modules"
+            }
+        },
+        {
+            "label": "Run all tasks (audio_vap)",
+            "dependsOn": [
+                "Run input.py",
+                "Run audio_vap.py",
+                "Run asr.py",
+                "Run tts.py",
+                "Run dialogue.py"
+            ],
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "Run all tasks (vad_vap)",
+            "dependsOn": [
+                "Run input.py",
+                "Run vad_vap.py",
+                "Run asr.py",
+                "Run tts.py",
+                "Run dialogue_vad.py"
+            ],
+            "problemMatcher": [],
+            "group": "build"
+        }
+    ]
+}

@@ -162,6 +162,7 @@ class Dialogue(RemdisModule):
         if user_utterance == '' or user_utterance == None:
             return
         
+        # 応答生成
         llm = ResponseChatGPT(self.config, self.prompts)
         t = threading.Thread(
             target=llm.run,
@@ -172,16 +173,15 @@ class Dialogue(RemdisModule):
                     self.llm_buffer)
         )
         t.start()
-
         selected_llm = self.llm_buffer.get()
-
 
         # IUに分割して送信
         sys.stderr.write('Resp: Selected user utterance: %s\n' % (selected_llm.user_utterance))
         # if llm.response is not None:
         conc_response = ''
+        
         for part in selected_llm.response:
-            # 表情・動作を送信
+            # 表情が"0_平静"でない or 動作が"0_待機"でない -> 表情・動作情報を送信
             expression_and_action = {}
             if 'expression' in part and part['expression'] != 'normal':
                 expression_and_action['expression'] = part['expression']
@@ -217,9 +217,6 @@ class Dialogue(RemdisModule):
         self.publish(snd_iu, 'dialogue')
         
         self.iu_memory = []
-
-
-
 
     # バックチャネルを送信
     def send_backchannel(self):

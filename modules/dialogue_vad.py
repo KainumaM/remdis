@@ -43,6 +43,10 @@ class Dialogue(RemdisModule):
         # 受信したIUを保持しておく変数
         self.iu_memory = []
 
+        # chatgpt
+        self.llm = ResponseChatGPT(self.config, self.prompts)
+
+
 
     # メインループ
     def run(self):
@@ -163,12 +167,10 @@ class Dialogue(RemdisModule):
             return
         
         # 応答生成
-        llm = ResponseChatGPT(self.config, self.prompts)
         t = threading.Thread(
-            target=llm.run,
+            target=self.llm.run,
             args=(time.time(),
                     user_utterance,
-                    self.dialogue_history,
                     None,
                     self.llm_buffer)
         )
@@ -181,6 +183,7 @@ class Dialogue(RemdisModule):
         conc_response = ''
         
         for part in selected_llm.response:
+            # 表情・動作情報
             # 表情が"0_平静"でない or 動作が"0_待機"でない -> 表情・動作情報を送信
             expression_and_action = {}
             if 'expression' in part and part['expression'] != 'normal':
@@ -194,6 +197,7 @@ class Dialogue(RemdisModule):
                 self.publish(snd_iu, 'dialogue2')
                 self.output_iu_buffer.append(snd_iu)
 
+            # 発話情報
             # 生成中に状態が変わることがあるためその確認の後，発話を送信
             if 'phrase' in part:
                 if self.state == 'talking':

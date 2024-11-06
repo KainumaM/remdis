@@ -24,13 +24,8 @@ class ResponseGenerator:
         # 生成中の応答を保持・パースする変数
         self.response_fragment = ''
         self.punctuation_pattern = re.compile('[、。！？\n]')
-
-        # # ChatGPTに入力する対話文脈
-        # self.messages = []
-
-        # # 過去の対話履歴を対話文脈に追加
-        # i = max(0, len(self.dialogue_history) - self.max_message_num_in_context)
-        # self.messages.extend(self.dialogue_history[i:])
+    
+        self.in_metadata = False
 
         # 新しいユーザ発話が存在せず自ら発話する場合のプロンプトを対話文脈に追加
         if query == None or query == '':
@@ -38,11 +33,6 @@ class ResponseGenerator:
 
         # self.log(f"messages: {self.messages=}")
         self.log(f"Call ChatGPT: {query=}")
-        
-        # # threadの初期化と対話履歴の追加
-        # self.thread = openai.beta.threads.create(
-        #     messages=self.messages
-        # )
 
         # スレッドにユーザ発話を追加
         openai.beta.threads.messages.create(
@@ -89,44 +79,35 @@ class ResponseGenerator:
                 new_token = event.data.delta.content[0].text.value
 
                 # 応答の断片を追加
-                if new_token is not None and new_token != "/":
+                if new_token is not None:
                     self.response_fragment += new_token
 
-                self.log(f"self.response_fragment: {self.response_fragment}")
+                self.log(f"self.response_fragment: {self.response_fragment}, new_token: {new_token=}")
 
-                # 句読点で応答を分割
-                splits = self.punctuation_pattern.split(self.response_fragment, 1)
-                self.log(f"splits: {splits=}")
 
-                # 次のループのために残りの断片を保持
-                self.response_fragment = splits[-1]
+                if self.in_metadata: # 表情・動作情報の出力中
+                    if ">" in self.response_fragment: # 表情・動作情報が完全に出力された
+                        parts = self.response_fragment.split(">", 1)
+                        self.response_fragment = parts[1]
+                        self.in_metadata = False
+                        return _parse_split(parts[0])
 
-                # 句読点が存在していた場合は1つ目の断片を返す
-                if len(splits) == 2 or new_token == "/":
-                    if splits[0]:
-                        self.log(f"print: {splits[0]=}")
+                else: # システム発話の出力中
+                    splits = self.punctuation_pattern.split(self.response_fragment, 1)
+                    self.response_fragment = splits[-1]
+                    if len(splits) == 2:
                         return {"phrase": splits[0]}
-                
-                # 応答の最後が来た場合は残りの断片を返す
-                if new_token == "/":
-                    if self.response_fragment:
-                        return {"phrase": self.response_fragment}
-                    self.response_fragment = ''
-
+                        
+                    if "<" in self.response_fragment: # システム発話が完全に出力された
+                        parts = self.response_fragment.split("<", 1)
+                        self.response_fragment = parts[1]
+                        self.in_metadata = True
+            
             elif event.event == "thread.message.completed":
-                # ChatGPTの応答が完了した場合は残りの断片をパースして返す
-                print(event.data.content[0].text.value)
-
-                # self.log(f"self.messages: {self.messages=}")
-                
-                agent_move = event.data.content[0].text.value.split("/")
-                self.log(f"thread.message.completed: {agent_move=}")
-
-                if len(agent_move) > 1:
-                    return _parse_split(agent_move[1])
+                self.in_metadata = False
 
         raise StopIteration
-    
+   
     # ResponseGeneratorをイテレータ化
     def __iter__(self):
         return self
@@ -165,12 +146,6 @@ class ResponseChatGPT():
         # 自身をDialogueモジュールが持つLLMバッファに追加
         parent_llm_buffer.put(self)
 
-    # ChatGPTの呼び出しを開始し、ResponseGeneratorのイテレータを返す
-    # def run(self, asr_timestamp, user_utterance, dialogue_history, last_asr_iu_id):
-    #     response = ResponseGenerator(self.config, asr_timestamp, user_utterance, dialogue_history, self.prompts)
-    #     return response  # ResponseGeneratorのイテレータをそのまま返す
-
-
 import threading
 import queue
 import yaml
@@ -205,7 +180,6 @@ if __name__ == "__main__":
         target=llm.run,
         args=(time.time(),
                 query,
-                dialogue_history,
                 None,
                 llm_buffer)
     )

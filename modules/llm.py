@@ -170,11 +170,9 @@ if __name__ == "__main__":
     ]
     prompts = {}
 
-    # with open('./prompt/response.txt') as f:
-    #     prompts['RESP'] = f.read()
+
     llm_buffer = queue.Queue()
 
-    # response_generator = ResponseGenerator(config, asr_timestamp, query, dialogue_history, prompts)
     llm = ResponseChatGPT(config, None)
     t = threading.Thread(
         target=llm.run,
@@ -185,13 +183,7 @@ if __name__ == "__main__":
     )
     t.start()
 
-    # llm = ResponseChatGPT(config, None)
-    # for part in llm.run(time.time(), query, dialogue_history, None):
-    #     print(part)
-
     for part in llm_buffer.get().response:
         print(part)
-
-    ##############
 
     time.sleep(0.5)

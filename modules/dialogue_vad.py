@@ -7,6 +7,7 @@ import re
 from base import RemdisModule, RemdisState, RemdisUtil, RemdisUpdateType
 from llm import ResponseChatGPT
 import prompt.util as prompt_util
+from logger import logger
 
 
 class Dialogue(RemdisModule):
@@ -43,8 +44,6 @@ class Dialogue(RemdisModule):
         # 受信したIUを保持しておく変数
         self.iu_memory = []
 
-        # chatgpt
-        self.llm = ResponseChatGPT(self.config, self.prompts)
 
 
 
@@ -117,7 +116,7 @@ class Dialogue(RemdisModule):
             event = self.event_queue.get()
             prev_state = self.state
             self.state = RemdisState.transition[self.state][event]
-            self.log(f'********** State: {prev_state} -> {self.state}, Trigger: {event} **********')
+            logger.info(f'********** State: {prev_state} -> {self.state}, Trigger: {event} **********')
             
             # 直前の状態がtalkingの場合にイベントに応じて処理を実行
             if prev_state == 'talking':
@@ -161,30 +160,27 @@ class Dialogue(RemdisModule):
 
     # システム発話を送信
     def send_response(self):
+        # ユーザ発話を受信
         user_utterance = self.util_func.concat_ius_body(self.iu_memory)
-
         if user_utterance == '' or user_utterance == None:
             return
         
         # 応答生成
+        llm = ResponseChatGPT(self.config, self.prompts)
         t = threading.Thread(
-            target=self.llm.run,
+            target=llm.run,
             args=(time.time(),
                     user_utterance,
                     None,
                     self.llm_buffer)
         )
         t.start()
-        selected_llm = self.llm_buffer.get()
+        self.llm_buffer.get()
 
-        # IUに分割して送信
-        sys.stderr.write('Resp: Selected user utterance: %s\n' % (selected_llm.user_utterance))
-        # if llm.response is not None:
+        # 生成内容をIUに分割して送信
         conc_response = ''
-        
-        for part in selected_llm.response:
-            # 表情・動作情報
-            # 表情が"0_平静"でない or 動作が"0_待機"でない -> 表情・動作情報を送信
+        for part in llm.response: 
+            # 表情・動作情報の処理
             expression_and_action = {}
             if 'expression' in part and part['expression'] != 'normal':
                 expression_and_action['expression'] = part['expression']
@@ -196,9 +192,7 @@ class Dialogue(RemdisModule):
                 self.printIU(snd_iu)
                 self.publish(snd_iu, 'dialogue2')
                 self.output_iu_buffer.append(snd_iu)
-
-            # 発話情報
-            # 生成中に状態が変わることがあるためその確認の後，発話を送信
+            # 発話情報の処理
             if 'phrase' in part:
                 if self.state == 'talking':
                     snd_iu = self.createIU(part['phrase'], 'dialogue', RemdisUpdateType.ADD)
@@ -208,18 +202,16 @@ class Dialogue(RemdisModule):
                     conc_response += part['phrase']
 
         # 対話履歴に発話を追加
-        if selected_llm.user_utterance:
-            self.history_management('user', selected_llm.user_utterance)
-        else:
-            self.history_management('user', '(沈黙)')
-        self.history_management('assistant', conc_response)
+        if llm.user_utterance:
+            logger.dialogue(f'User   : {llm.user_utterance}')
+        logger.dialogue(f'System : {conc_response}')
 
         # 応答生成終了メッセージ
-        sys.stderr.write('End of selected llm response. Waiting next user uttenrance.\n')
         snd_iu = self.createIU('', 'dialogue', RemdisUpdateType.COMMIT)
         self.printIU(snd_iu)
         self.publish(snd_iu, 'dialogue')
-        
+
+        # 音声認識のバッファをクリア
         self.iu_memory = []
 
     # バックチャネルを送信
@@ -274,6 +266,7 @@ class Dialogue(RemdisModule):
 
     # 対話履歴を更新
     def history_management(self, role, utt):
+
         self.dialogue_history.append({"role": role, "content": utt})
         if len(self.dialogue_history) > self.history_length:
             self.dialogue_history.pop(0)

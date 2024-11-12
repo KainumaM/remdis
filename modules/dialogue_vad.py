@@ -278,6 +278,7 @@ class Dialogue(RemdisModule):
             self.dialogue_history.pop(0)
 
 def main():
+    # assistant のパース
     assistant_ids = {
         # assistant_name, chatgpt_id, voicevox_id
         "asada": ("asst_z2nd92qpkV3ktiTDMMwwZEnG", 2),
@@ -287,7 +288,6 @@ def main():
         "tanaka": ("asst_z2nd92qpkV3ktiTDMMwwZEnG", 41),
     }
     assistant_names = list(assistant_ids.keys())
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "assistant",
@@ -296,7 +296,6 @@ def main():
         help=f"対話相手の名前を指定します。利用可能な対話相手は、{', '.join(assistant_names)} です。",
     )
     args = parser.parse_args()
-
     print("Selected assistant:", args.assistant)
     assistant_id, _ = assistant_ids[args.assistant]
 

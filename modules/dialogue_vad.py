@@ -3,6 +3,7 @@ import threading
 import queue
 import time
 import re
+import argparse
 
 from base import RemdisModule, RemdisState, RemdisUtil, RemdisUpdateType
 from llm import ResponseChatGPT
@@ -12,6 +13,7 @@ from logger import logger
 
 class Dialogue(RemdisModule):
     def __init__(self, 
+                 assistant_id,
                  pub_exchanges=['dialogue', 'dialogue2'],
                  sub_exchanges=['asr', 'vap', 'tts', 'bc', 'emo_act']):
         super().__init__(pub_exchanges=pub_exchanges,
@@ -24,6 +26,10 @@ class Dialogue(RemdisModule):
 
         # 対話履歴
         self.dialogue_history = []
+
+        # assistant_id を格納
+        self.assistant_id = assistant_id
+
 
         # IUおよび応答の処理用バッファ
         self.system_utterance_end_time = 0.0
@@ -167,10 +173,13 @@ class Dialogue(RemdisModule):
         llm = ResponseChatGPT(self.config, self.prompts)
         t = threading.Thread(
             target=llm.run,
-            args=(time.time(),
-                    user_utterance,
-                    None,
-                    self.llm_buffer)
+            args=(
+                time.time(),
+                self.assistant_id,
+                user_utterance,
+                None,
+                self.llm_buffer,
+            )
         )
         t.start()
         self.llm_buffer.get()
@@ -269,7 +278,29 @@ class Dialogue(RemdisModule):
             self.dialogue_history.pop(0)
 
 def main():
-    dialogue = Dialogue()
+    assistant_ids = {
+        # assistant_name, chatgpt_id, voicevox_id
+        "asada": ("asst_z2nd92qpkV3ktiTDMMwwZEnG", 2),
+        "suzuki": ("asst_z2nd92qpkV3ktiTDMMwwZEnG", 2),
+        "okada": ("asst_z2nd92qpkV3ktiTDMMwwZEnG", 41),
+        "sakamoto": ("asst_z2nd92qpkV3ktiTDMMwwZEnG", 41),
+        "tanaka": ("asst_z2nd92qpkV3ktiTDMMwwZEnG", 41),
+    }
+    assistant_names = list(assistant_ids.keys())
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "assistant",
+        type=str,
+        choices=assistant_names,
+        help=f"対話相手の名前を指定します。利用可能な対話相手は、{', '.join(assistant_names)} です。",
+    )
+    args = parser.parse_args()
+
+    print("Selected assistant:", args.assistant)
+    assistant_id, _ = assistant_ids[args.assistant]
+
+    dialogue = Dialogue(assistant_id=assistant_id)
     dialogue.run()
 
 if __name__ == '__main__':

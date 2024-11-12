@@ -10,7 +10,7 @@ from base import MMDAgentEXLabel
 from logger import logger
 
 class ResponseGenerator:
-    def __init__(self, config, asr_timestamp, query, prompts, thread):
+    def __init__(self, config, asr_timestamp, assistant_id, thread_id, query, prompts):
         # 設定の読み込み
         self.max_tokens = config['ChatGPT']['max_tokens']
         self.max_message_num_in_context = config['ChatGPT']['max_message_num_in_context']
@@ -35,15 +35,15 @@ class ResponseGenerator:
 
         # スレッドにユーザ発話を追加
         openai.beta.threads.messages.create(
-            thread_id=thread.id,
+            thread_id=thread_id,
             role="user",
             content=query,
         )
 
         # ストリーミングリクエストの開始
         self.stream = openai.beta.threads.runs.create(
-            assistant_id="asst_z2nd92qpkV3ktiTDMMwwZEnG",
-            thread_id=thread.id,
+            assistant_id=assistant_id,
+            thread_id=thread_id,
             stream=True,
             max_completion_tokens=self.max_tokens
         )
@@ -126,16 +126,16 @@ class ResponseChatGPT():
         self.asr_time = 0.0
 
         # threadの初期化と対話履歴の追加
-        self.thread = openai.beta.threads.create()
+        self.thread_id = openai.beta.threads.create().id
     
     # ChatGPTの呼び出しを開始
-    def run(self, asr_timestamp, user_utterance, last_asr_iu_id, parent_llm_buffer):
+    def run(self, asr_timestamp, assistant_id, user_utterance, last_asr_iu_id, parent_llm_buffer):
         self.user_utterance = user_utterance
         self.last_asr_iu_id = last_asr_iu_id
         self.asr_time = asr_timestamp
 
         # ChataGPTを呼び出して応答の生成を開始
-        self.response = ResponseGenerator(self.config, asr_timestamp, user_utterance, self.prompts, self.thread)
+        self.response = ResponseGenerator(self.config, asr_timestamp, assistant_id, self.thread_id, user_utterance, self.prompts)
 
         # 自身をDialogueモジュールが持つLLMバッファに追加
         parent_llm_buffer.put(self)

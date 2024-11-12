@@ -12,16 +12,6 @@
             }
         },
         {
-            "label": "Run audio_vap.py",
-            "type": "shell",
-            "command": "python audio_vap.py",
-            "problemMatcher": [],
-            "group": "build",
-            "options": {
-                "cwd": "${workspaceFolder}/modules"
-            }
-        },
-        {
             "label": "Run vad_vap.py",
             "type": "shell",
             "command": "python vad_vap.py",
@@ -52,48 +42,42 @@
             }
         },
         {
-            "label": "Run dialogue.py",
-            "type": "shell",
-            "command": "python dialogue.py",
-            "problemMatcher": [],
-            "group": "build",
-            "options": {
-                "cwd": "${workspaceFolder}/modules"
-            }
-        },
-        {
-            "label": "Run dialogue_vad.py",
-            "type": "shell",
-            "command": "python dialogue_vad.py",
-            "problemMatcher": [],
-            "group": "build",
-            "options": {
-                "cwd": "${workspaceFolder}/modules"
-            }
-        },
-        {
-            "label": "Run all tasks (audio_vap)",
-            "dependsOn": [
-                "Run input.py",
-                "Run audio_vap.py",
-                "Run asr.py",
-                "Run tts.py",
-                "Run dialogue.py"
-            ],
-            "problemMatcher": [],
-            "group": "build"
-        },
-        {
             "label": "Run all tasks (vad_vap)",
             "dependsOn": [
                 "Run input.py",
                 "Run vad_vap.py",
                 "Run asr.py",
                 "Run tts.py",
-                "Run dialogue_vad.py"
             ],
             "problemMatcher": [],
-            "group": "build"
+            "group": "build",
+        },
+        {
+            "label": "Run dialogue_vad.py",
+            "type": "shell",
+            "command": "python dialogue_vad.py",
+            "args": [
+                "${input:assistantName}"
+            ],
+            "problemMatcher": [],
+            "group": "build",
+            "options": {
+                "cwd": "${workspaceFolder}/modules"
+            }
+        },
+    ],
+    "inputs": [
+        {
+            "type": "pickString",
+            "id": "assistantName",
+            "description": "Select an assistant",
+            "options": [
+                "asada",
+                "suzuki",
+                "okada",
+                "sakamoto",
+                "tanaka"
+            ]
         }
     ]
 }

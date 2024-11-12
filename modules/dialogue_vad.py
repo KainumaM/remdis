@@ -44,9 +44,6 @@ class Dialogue(RemdisModule):
         # 受信したIUを保持しておく変数
         self.iu_memory = []
 
-
-
-
     # メインループ
     def run(self):
         # 音声認識結果受信スレッド
@@ -98,7 +95,6 @@ class Dialogue(RemdisModule):
 
     # 随時受信される音声認識結果の格納
     def parallel_response_generation(self):
-
         while True:
             # IUを受信して保存
             input_iu = self.input_iu_buffer.get()
@@ -163,6 +159,8 @@ class Dialogue(RemdisModule):
         # ユーザ発話を受信
         user_utterance = self.util_func.concat_ius_body(self.iu_memory)
         if user_utterance == '' or user_utterance == None:
+            logger.info("BOTH_SILENCE")
+            self.event_queue.put('BOTH_SILENCE')
             return
         
         # 応答生成
@@ -266,14 +264,9 @@ class Dialogue(RemdisModule):
 
     # 対話履歴を更新
     def history_management(self, role, utt):
-
         self.dialogue_history.append({"role": role, "content": utt})
         if len(self.dialogue_history) > self.history_length:
             self.dialogue_history.pop(0)
-
-    # デバッグ用にログを出力
-    def log(self, *args, **kwargs):
-        print(f"[{time.time():.5f}]", *args, flush=True, **kwargs)
 
 def main():
     dialogue = Dialogue()

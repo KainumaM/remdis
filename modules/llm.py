@@ -7,7 +7,7 @@ import string
 import openai
 
 from base import MMDAgentEXLabel
-
+from logger import logger
 
 class ResponseGenerator:
     def __init__(self, config, asr_timestamp, query, prompts, thread):
@@ -31,8 +31,7 @@ class ResponseGenerator:
         if query == None or query == '':
            query = "(沈黙中)"
 
-        # self.log(f"messages: {self.messages=}")
-        self.log(f"Call ChatGPT: {query=}")
+        logger.info(f'Call ChatGPT: {query=}')
 
         # スレッドにユーザ発話を追加
         openai.beta.threads.messages.create(
@@ -80,10 +79,10 @@ class ResponseGenerator:
 
                 # 応答の断片を追加
                 if new_token is not None:
+                    new_token = new_token.strip()
                     self.response_fragment += new_token
 
-                self.log(f"self.response_fragment: {self.response_fragment}, new_token: {new_token=}")
-
+                logger.info(f'self.response_fragment: {self.response_fragment}, new_token: {new_token=}')
 
                 if self.in_metadata: # 表情・動作情報の出力中
                     if ">" in self.response_fragment: # 表情・動作情報が完全に出力された
@@ -111,11 +110,6 @@ class ResponseGenerator:
     # ResponseGeneratorをイテレータ化
     def __iter__(self):
         return self
-
-    # デバッグ用のログ出力
-    def log(self, *args, **kwargs):
-        print(f"[{time.time():.5f}]", *args, flush=True, **kwargs)
-
 
 class ResponseChatGPT():
     def __init__(self, config, prompts):
@@ -157,6 +151,7 @@ def load_config(config_filename):
     return config
 
 if __name__ == "__main__":
+    # test
     openai.api_key = ''    
     config = load_config('../config/config.yaml')
 
@@ -169,10 +164,7 @@ if __name__ == "__main__":
         {'role': 'assistant', 'content': "いいえ、あまりよく知りません。/4_考え中,3_首をかしげる"},
     ]
     prompts = {}
-
-
     llm_buffer = queue.Queue()
-
     llm = ResponseChatGPT(config, None)
     t = threading.Thread(
         target=llm.run,
@@ -182,8 +174,6 @@ if __name__ == "__main__":
                 llm_buffer)
     )
     t.start()
-
     for part in llm_buffer.get().response:
         print(part)
-
     time.sleep(0.5)

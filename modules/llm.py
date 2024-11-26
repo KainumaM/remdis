@@ -10,7 +10,7 @@ from base import MMDAgentEXLabel
 from logger import logger
 
 class ResponseGenerator:
-    def __init__(self, config, asr_timestamp, assistant_id, thread_id, query, prompts):
+    def __init__(self, config, asr_timestamp, assistant_id, thread_id, query):
         # 設定の読み込み
         self.max_tokens = config['ChatGPT']['max_tokens']
         self.max_message_num_in_context = config['ChatGPT']['max_message_num_in_context']
@@ -19,7 +19,6 @@ class ResponseGenerator:
         # 処理対象のユーザ発話に関する情報
         self.asr_timestamp = asr_timestamp
         self.query = query
-        self.prompts = prompts
 
         # 生成中の応答を保持・パースする変数
         self.response_fragment = ''
@@ -112,9 +111,8 @@ class ResponseGenerator:
         return self
 
 class ResponseChatGPT():
-    def __init__(self, config, prompts):
+    def __init__(self, config):
         self.config = config
-        self.prompts = prompts
 
         # 設定の読み込み
         openai.api_key = config['ChatGPT']['api_key']
@@ -135,7 +133,7 @@ class ResponseChatGPT():
         self.asr_time = asr_timestamp
 
         # ChataGPTを呼び出して応答の生成を開始
-        self.response = ResponseGenerator(self.config, asr_timestamp, assistant_id, self.thread_id, user_utterance, self.prompts)
+        self.response = ResponseGenerator(self.config, asr_timestamp, assistant_id, self.thread_id, user_utterance)
 
         # 自身をDialogueモジュールが持つLLMバッファに追加
         parent_llm_buffer.put(self)
@@ -163,7 +161,6 @@ if __name__ == "__main__":
         {'role': 'user', 'content': "本日は作業療法を行います。作業療法について何かご存知ですか？"},
         {'role': 'assistant', 'content': "いいえ、あまりよく知りません。/4_考え中,3_首をかしげる"},
     ]
-    prompts = {}
     llm_buffer = queue.Queue()
     llm = ResponseChatGPT(config, None)
     t = threading.Thread(

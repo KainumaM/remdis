@@ -7,7 +7,6 @@ import argparse
 
 from base import RemdisModule, RemdisState, RemdisUtil, RemdisUpdateType
 from llm import ResponseChatGPT
-import prompt.util as prompt_util
 from logger import logger
 
 
@@ -22,7 +21,6 @@ class Dialogue(RemdisModule):
         # 設定の読み込み
         self.history_length = self.config['DIALOGUE']['history_length']
         self.response_generation_interval = self.config['DIALOGUE']['response_generation_interval']
-        self.prompts = prompt_util.load_prompts(self.config['ChatGPT']['prompts'])
 
         # 対話履歴
         self.dialogue_history = []
@@ -170,7 +168,7 @@ class Dialogue(RemdisModule):
             return
         
         # 応答生成
-        llm = ResponseChatGPT(self.config, self.prompts)
+        llm = ResponseChatGPT(self.config)
         t = threading.Thread(
             target=llm.run,
             args=(

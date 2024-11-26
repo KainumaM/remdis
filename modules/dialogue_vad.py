@@ -281,8 +281,8 @@ def main():
         # assistant_name, chatgpt_id, voicevox_id
         "asada": ("asst_z2nd92qpkV3ktiTDMMwwZEnG", 2),
         "suzuki": ("asst_z2nd92qpkV3ktiTDMMwwZEnG", 2),
-        "okada": ("asst_z2nd92qpkV3ktiTDMMwwZEnG", 41),
-        "sakamoto": ("asst_z2nd92qpkV3ktiTDMMwwZEnG", 41),
+        "okada": ("asst_naZAtdVwSUKvWQdEqwsTxVTn", 41),
+        "sakamoto": ("asst_8c8S3HjgZnRlBocIGYKtgQPn", 41),
         "tanaka": ("asst_z2nd92qpkV3ktiTDMMwwZEnG", 41),
     }
     assistant_names = list(assistant_ids.keys())

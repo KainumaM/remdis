@@ -18,7 +18,8 @@ MMDAgent-ExはMikuMikuDance形式の3Dモデルをサポートしているらし
 
 ### .pmxファイルから .pmd, .pmd.csv ファイルへの変換
 pmxファイルはサポートされてないので変換が必要。変換にpmxエディタが必要なのでインストールする。\
-起動しない場合は必要モジュールがない可能性（自分はdirectXのランタイムがなかった）
+起動しない場合は必要モジュールがない可能性（自分はdirectXのランタイムがなかった）\
+変換時にいくらかのデータが失われる可能性アリ（表情とか）
 
 参考
 - http://rockstababy.starfree.jp/mmdsupporter/bemmder/section1.php

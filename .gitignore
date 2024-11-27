@@ -3,3 +3,4 @@
 *.ckpt
 prompt/
 logs/
+kurono/

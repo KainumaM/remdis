@@ -4,7 +4,9 @@
     # load floor and background images
     <eps> STAGE|asset/images/floor.png,asset/images/grad1.png
     # add CG model
-    <eps> MODEL_ADD|0|asset/models/uka/MS_Uka.pmd
+    # <eps> MODEL_ADD|0|asset/models/uka/MS_Uka.pmd
+    # <eps> MODEL_ADD|0|asset/models/gene/Gene.pmd
+    <eps> MODEL_ADD|0|asset/models/kurono/kurono.pmd
     # add basic wait motion as a loop motion
     MODEL_EVENT_ADD|0  MOTION_ADD|0|base|asset/base/wait.vmd|FULL|LOOP|ON|OFF
     # set window frame image

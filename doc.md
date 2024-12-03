@@ -5,6 +5,10 @@
 ## エージェントの切り替え
 example の main.fst のモデルファイル Gene.pmd をしているところを以下のように変更して起動しなおし
 
+```code:fst
+<eps> MODEL_ADD|0|asset/models/<model_name>/<model_name>.pmd
+```
+
 ## Uka, Gene 以外のエージェントを使用するには
 MMDAgent-ExはMikuMikuDance形式の3Dモデルをサポートしているらしく、そのモデルをインポートすれば使える[^1]
 

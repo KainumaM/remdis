@@ -13,7 +13,8 @@ def stop():
     pyautogui.hotkey("alt", "f9")
     print("Recording stopped...")
 
-# （laptop用）OBS をアクティブにする
+# OBS のウィンドウをアクティブにする（laptop用、OBS側の設定が必要）
+# Nvidia GeForce だと pyautogui のショートカットキー入力を認識してくれるが OBS だと反応しないため
 def activate_obs_window():
     obs_window = None
     for window in gw.getAllTitles():

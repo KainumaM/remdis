@@ -4,6 +4,7 @@ import queue
 import time
 import re
 import argparse
+import recording
 
 from base import RemdisModule, RemdisState, RemdisUtil, RemdisUpdateType
 from llm import ResponseChatGPT
@@ -41,6 +42,7 @@ class Dialogue(RemdisModule):
         self.event_queue = queue.Queue()
         self.state = 'idle'
         self._is_running = True
+        self.turn_taking_count = 0
 
         # IU処理用の関数
         self.util_func = RemdisUtil()
@@ -167,6 +169,15 @@ class Dialogue(RemdisModule):
             self.event_queue.put('BOTH_SILENCE')
             return
         
+        # 会話ターン数を出力し、録画終了
+        if user_utterance.strip() == "終了":
+            print("会話を終了します。")
+            logger.dialogue("会話ターン数: " + str(self.turn_taking_count) + "\n")
+            time.sleep(1)
+            recording.stop()
+            sys.exit(0)
+        self.turn_taking_count += 1
+    
         # 応答生成
         llm = ResponseChatGPT(self.config)
         t = threading.Thread(
@@ -218,6 +229,7 @@ class Dialogue(RemdisModule):
 
         # 音声認識のバッファをクリア
         self.iu_memory = []
+        
 
     # バックチャネルを送信
     def send_backchannel(self):
@@ -276,6 +288,8 @@ class Dialogue(RemdisModule):
             self.dialogue_history.pop(0)
 
 def main():
+    recording.start()
+
     # assistant のパース
     assistant_ids = {
         # assistant_name, chatgpt_id, voicevox_id

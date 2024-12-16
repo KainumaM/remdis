@@ -24,10 +24,10 @@ class Audio_VAD_VAP(RemdisModule):
         self.frame_bytes = self.frame_size * 2  # Each sample is 2 bytes (int16)
 
         # VAD object
-        self.vad = webrtcvad.Vad(3)  # Aggressiveness: 0-3
+        self.vad = webrtcvad.Vad(1)  # Aggressiveness: 0-3 （無音判定の厳しさ 0 有音寄りの判定 ~ 3 無音寄りの判定）
 
         # Silence detection parameters
-        self.silence_threshold = 0.5  # Set to 0.5 seconds for 500ms threshold
+        self.silence_threshold = 0.5  # 無音状態が何秒間続いたら検知するか
 
         # State variables
         self.speech_state = 'silence'  # 'speech' or 'silence'

@@ -18,13 +18,16 @@ GCP
 ChatGPT
 - APIキーをconfig.yamlに設定
 
+## VSCode Install
+
 ## Anaconda Install
 
 下記からインストール\
+インストール時にcondaのPATHを設定するようにする\
 https://www.anaconda.com/download/success
 
 
-anaconda powershell prompt を開いて下記実行
+cmd を開いて下記実行
 ```cmd
 $ conda create -n [name] python=[version]
 $ conda activate [name]	

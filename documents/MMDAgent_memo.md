@@ -1,5 +1,3 @@
-# ドキュメント
-
 # MMDAgent-Ex
 
 ## エージェントの切り替え
@@ -11,6 +9,7 @@ example の main.fst のモデルファイル Gene.pmd をしているところ�
 
 ## Uka, Gene 以外のエージェントを使用するには
 MMDAgent-ExはMikuMikuDance形式の3Dモデルをサポートしているらしく、そのモデルをインポートすれば使える[^1]
+口の動作が実装されているか等、色々条件があるのでなかなか要求に合ったものを見つけるのは難しい
 
 参考
 - https://www.youtube.com/watch?v=QnI07mXvQSc&ab_channel=GROOVY%5BK%5D2000

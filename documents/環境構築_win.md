@@ -1,7 +1,7 @@
 # 環境構築_win
 
-## 前提条件
-- WSL2 設定済み
+前提条件として WSL2 が設定済みであること
+
 
 ## Docker Desktop Install
 
@@ -9,6 +9,7 @@
 https://docs.docker.com/desktop/setup/install/windows-install/
 
 インストールしたら設定からエンジンを WSL2 のディストロを参照するように
+
 
 ## 各種API認証情報の設定
 
@@ -18,7 +19,12 @@ GCP
 ChatGPT
 - APIキーをconfig.yamlに設定
 
+
 ## VSCode Install
+
+プログラム実行に使うので、あらかじめインストール\
+[Python の拡張機能](https://marketplace.visualstudio.com/items?itemName=ms-python.python)をインストールする
+
 
 ## Anaconda Install
 
@@ -39,11 +45,10 @@ https://qiita.com/naz_/items/84634fbd134fbcd25296
 VSCodeからデフォルトの環境を設定\
 https://code.visualstudio.com/docs/python/environments#_creating-environments
 
+
 ## 必要pipモジュールのインストール
 
-`pip install -r requirements.txt`したい、が通らないので
-
-下記を別途インストールする必要あり
+`pip install -r requirements.txt`する前に必要なアプリケーションをインストール
 - cmake
   - https://cmake.org/download/
   - Binary distributions から適当なバージョンをインストール

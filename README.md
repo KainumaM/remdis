@@ -1,5 +1,3 @@
-hennkou
-
 
 
 ![Color logo with background](https://github.com/remdis/remdis/assets/15374299/da5eb1c0-b3b4-4056-9c68-99448265e9a4)

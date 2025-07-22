@@ -4,7 +4,7 @@
         {
             "label": "Run input.py",
             "type": "shell",
-            "command": "python input.py",
+            "command": "conda activate remdis && python input.py",
             "problemMatcher": [],
             "group": "build",
             "options": {
@@ -14,7 +14,7 @@
         {
             "label": "Run vad_vap.py",
             "type": "shell",
-            "command": "python vad_vap.py",
+            "command": "conda activate remdis && python vad_vap.py",
             "problemMatcher": [],
             "group": "build",
             "options": {
@@ -24,7 +24,7 @@
         {
             "label": "Run asr.py",
             "type": "shell",
-            "command": "python asr.py",
+            "command": "conda activate remdis && python asr.py",
             "problemMatcher": [],
             "group": "build",
             "options": {
@@ -34,7 +34,7 @@
         {
             "label": "Run tts.py",
             "type": "shell",
-            "command": "python tts.py",
+            "command": "conda activate remdis && python tts.py",
             "problemMatcher": [],
             "group": "build",
             "options": {
@@ -55,7 +55,7 @@
         {
             "label": "Run dialogue_vad.py",
             "type": "shell",
-            "command": "python dialogue_vad.py",
+            "command": "conda activate remdis && python dialogue_vad.py",
             "args": [
                 "${input:assistantName}"
             ],
@@ -65,6 +65,15 @@
                 "cwd": "${workspaceFolder}/modules"
             }
         },
+        { // <--- 新しいタスクを追加
+            "label": "Check Task Python Path",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "-c",
+                "import sys; print(f'Task is using: {sys.executable}')"
+            ]
+        }
     ],
     "inputs": [
         {

@@ -69,6 +69,9 @@ RemdisではRabbitMQの実行にDockerを利用します。Audio VAPでGPUを利
   conda create -n remdis python=3.11
   conda activate remdis
 
+  #　もし仮想環境を抜けたい際
+  conda deactivate
+
   # 依存パッケージのインストール
   pip3 install -r requirements.txt
   ~~~

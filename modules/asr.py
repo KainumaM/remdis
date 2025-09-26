@@ -203,7 +203,6 @@ class ASR(RemdisModule):
     async def receiver(self, websocket):
         current_full_transcript = ""
         async for message in websocket:
-            print(f"DEBUG (receiver): サーバーからの生メッセージ -> {message}")
             try:
                 response = json.loads(message)
                 msg_type = response.get("type")

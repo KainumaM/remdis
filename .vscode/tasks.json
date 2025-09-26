@@ -55,10 +55,7 @@
         {
             "label": "Run dialogue_vad.py",
             "type": "shell",
-            "command": "conda activate remdis && python dialogue_vad.py",
-            "args": [
-                "${input:assistantName}"
-            ],
+            "command": "conda activate remdis && python dialogue_vad.py ${input:assistantName}",
             "problemMatcher": [],
             "group": "build",
             "options": {

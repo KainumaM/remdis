@@ -6,7 +6,7 @@ AIN:
 
 ASR:
  buff_size: 10
- json_key: ../.credentials/bold-meridian-450905-p5-b0b0e5cceae0.json
+ json_key: <enter your json path>
  language: ja
  chunk_size: 20
  sample_rate: 24000 # Hz

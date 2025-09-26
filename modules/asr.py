@@ -1,13 +1,15 @@
 import sys, os
 import time
 
-from google.cloud import speech as gspeech
 import MeCab
 
 import queue
 import threading
 import base64
 
+import asyncio
+import websockets
+import json
 from base import RemdisModule, RemdisUpdateType
 
 STREAMING_LIMIT = 240  # 4 minutes
@@ -61,196 +63,207 @@ class ASR(RemdisModule):
 
         # ASR用の変数
         self.language = self.config['ASR']['language']
-        self.nchunks = self.config['ASR']['chunk_size']
-        self.rate = self.config['ASR']['sample_rate']
 
         self.client = None
         self.streaming_config = None
         self.responses = []
 
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.config['ASR']['json_key']
-
-        # ASR リスタート用の変数
-        self.asr_start_time = 0.0
-        self.asr_init()
+        self.api_key = self.config['ChatGPT']['api_key']
+        # 音声データを一時的に保持するためのスレッドセーフなキュー
+        self.audio_buffer = queue.Queue()
+        # 認識結果のテキストを非同期処理から同期処理へ渡すためのキュー
+        self.transcript_queue = queue.Queue()
         
         self.tagger = MeCab.Tagger("-Owakati")
 
         self._is_running = True
-        self.resume_asr = False
+        #self.resume_asr = False
+        #無音を送る変更以下2行
+        self.last_audio_time = time.time()
+        self.silence_reported = False
+
 
     def run(self):
-        # メッセージ受信スレッド
+        # 音声データ受信スレッド
         t1 = threading.Thread(target=self.listen_loop)
-        # 音声認識・メッセージ送信スレッド
-        t2 = threading.Thread(target=self.produce_predictions_loop)
+        # 認識結果の処理・IU送信スレッド
+        t2 = threading.Thread(target=self.produce_transcripts_loop)
+        # 音声認識(非同期処理)スレッド
+        t3 = threading.Thread(target=self.websocket_loop)
 
         # スレッド実行
         t1.start()
         t2.start()
+        t3.start()
+
+        return t1, t2, t3
 
     def listen_loop(self):
         self.subscribe('ain', self.callback)
 
-    def produce_predictions_loop(self):
+    def produce_transcripts_loop(self):
         while self._is_running:                
             # 逐次音声認識結果の取得
-            requests = (
-                gspeech.StreamingRecognizeRequest(audio_content=content)
-                for content in self._generator()
-            )
-
-            if self.resume_asr == True:
-                sys.stderr.write('Resume: ASR\n')
-                self.asr_init()
-            
-            self.responses = self.client.streaming_recognize(
-                self.streaming_config, requests
-            )
-            
-            # 音声認識結果の解析とメッセージの発出
-            for response in self.responses:
-                # Google Cloud Speech-to-Textの結果を格納
-                p = self._extract_results(response)
-
-                if p:
-                    current_text = p['text']
-
-                    # iu_buffer: REVOKEしたIUを格納した送信用IUバッファ
-                    # new_tokens: 新しい音声認識結果のトークン系列
-                    iu_buffer, new_tokens = get_text_increment(self,
-                                                               current_text,
-                                                               self.tagger)
-
-                    # 発出するトークンがない場合の処理
-                    if len(new_tokens) == 0:
-                        if not p['is_final']:
-                            continue
-                        else:
-                            # f (is_final)がTrueの時は空のIUをCOMMITで作成
-                            output_iu = self.createIU_ASR('', [p['stability'], p['confidence']])
-                            output_iu['update_type'] = RemdisUpdateType.COMMIT
-                            #self.current_output = []
-                            # 送信用バッファに格納
-                            iu_buffer.append(output_iu)
-
-                    # 発出するトークンが存在する場合の処理        
-                    for i, token in enumerate(new_tokens):
-                        output_iu = self.createIU_ASR(token, [0.0, 0.99])
-                        eou = p['is_final'] and i == len(new_tokens) - 1
-                        if eou:
-                            # 発話終端であればCOMMITに設定
-                            output_iu['update_type'] = RemdisUpdateType.COMMIT
-                        else:
-                            self.current_output.append(output_iu)
-
+            try:
+                # iu_buffer: REVOKEしたIUを格納した送信用IUバッファ
+                # new_tokens: 新しい音声認識結果のトークン系列
+                current_text, is_completed = self.transcript_queue.get(timeout=1.0)
+                iu_buffer, new_tokens = get_text_increment(self, current_text, self.tagger)
+                if is_completed:
+                    # is_completedがTRUEの時は空のIUをCOMMITで作成
+                    output_iu = self.createIU_ASR('')
+                    output_iu['update_type'] = RemdisUpdateType.COMMIT
+                    # 送信バッファに格納
+                    iu_buffer.append(output_iu)
+                    #self.current_output = []
+                else:
+                    for token in new_tokens:
+                        output_iu = self.createIU_ASR(token)
+                        self.current_output.append(output_iu)
                         iu_buffer.append(output_iu)
 
-                    # 送信用バッファに格納したIUを発出
-                    for snd_iu in iu_buffer:
-                        self.printIU(snd_iu)
-                        self.publish(snd_iu, 'asr')
+                for snd_iu in iu_buffer:
+                    self.printIU(snd_iu)
+                    self.publish(snd_iu, 'asr')
+            except queue.Empty:
+                continue
+            except Exception as e:
+                sys.stderr.write(f"Error in transcript processing loop: {e}\n")
 
-    # ASRモジュール用のIU作成関数 (信頼スコアなどを格納)
-    def createIU_ASR(self, token, asr_result):
-        iu = self.createIU(token, 'asr', RemdisUpdateType.ADD)
-        iu['stability'] = asr_result[0]
-        iu['confidence'] = asr_result[1]
-        return iu
-        
-    # バッファに溜まった音声波形を結合し返却するgenerator
-    def _generator(self):
+    def websocket_loop(self):
+        try:
+            asyncio.run(self.transcriber())
+        except Exception as e:
+            sys.stderr.write(f"Error in asyncio loop: {e}\n")
+            self._is_running = False
+
+    async def transcriber(self):
+        # OpenAI Realtime APIのエンドポイント
+        OPENAI_WEBSOCKET_URL = "wss://api.openai.com/v1/realtime?intent=transcription"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "OpenAI-Beta": "realtime=v1"
+        }
+        try:
+            async with websockets.connect(
+                OPENAI_WEBSOCKET_URL,
+                extra_headers=headers,
+                ping_interval=5,
+                ping_timeout=20
+            ) as websocket:
+                sys.stderr.write("Successfully connected to OpenAI Realtime API.\n")
+                sender_task = asyncio.create_task(self.sender(websocket))
+                receiver_task = asyncio.create_task(self.receiver(websocket))
+                await asyncio.gather(sender_task, receiver_task)
+        except websockets.exceptions.ConnectionClosed as e:
+            sys.stderr.write(f"Connection to OpenAI closed: {e.code} {e.reason}\n")
+        except Exception as e:
+            sys.stderr.write(f"An unexpected error occurred with OpenAI connection: {e}\n")
+        finally:
+            self._is_running = False
+
+    async def sender(self, websocket):
+        await websocket.send(json.dumps({
+            "type": "transcription_session.update",
+            "session": {
+                "input_audio_format": "pcm16",
+                "input_audio_transcription": {
+                    "model": "gpt-4o-transcribe",
+                    "language":  self.language
+                },
+            }
+        }))
+        loop = asyncio.get_event_loop()
         while self._is_running:
-            # ASRがタイムアウトしそうな場合は再起動
-            current_time = time.time()
-            proc_time = current_time - self.asr_start_time
-            if proc_time >= STREAMING_LIMIT:
-                self.resume_asr = True
+            try:
+                audio_chunk = await loop.run_in_executor(None, self.audio_buffer.get, True, 1.0)
+                if audio_chunk:
+                    # 無音を送る変更以下2行
+                    self.last_audio_time = time.time()
+                    self.silence_reported = False
+                    encoded_data = base64.b64encode(audio_chunk).decode('utf-8')
+                    await websocket.send(json.dumps({
+                        "type": "input_audio_buffer.append",
+                        "audio": encoded_data
+                    }))
+            except queue.Empty:
+                # 無音を送る変更if文のブロックすべて: 音声がなければ沈黙時間をチェック ---
+                if time.time() - self.last_audio_time > 1.0 and not self.silence_reported:
+                    sys.stderr.write(f"Silence detected for over 1.0 seconds. Reporting COMMIT.\n")
+                    # COMMITを発行するための特別なメッセージをキューに入れる
+                    self.transcript_queue.put(("", True))
+                    # 報告済みフラグを立てる
+                    self.silence_reported = True
+
+                continue
+            except Exception as e:
+                sys.stderr.write(f"Error in sender: {e}\n")
                 break
-            
-            # 最初のデータの取得
-            chunk = self.audio_buffer.get()
-            # 何も送られていなければ処理を終了
-            if chunk is None:
-                return
-            data = [chunk]
+    
+    async def receiver(self, websocket):
+        current_full_transcript = ""
+        async for message in websocket:
+            print(f"DEBUG (receiver): サーバーからの生メッセージ -> {message}")
+            try:
+                response = json.loads(message)
+                msg_type = response.get("type")
 
-            # データがバッファに残っていれば全て取得
-            while True:
-                try:
-                    chunk = self.audio_buffer.get(block=False)
-                    if chunk is None:
-                        return
-                    data.append(chunk)
-                except queue.Empty:
-                    break
+                # --- 変更: メッセージのtypeに応じて処理を分岐 ---
+                if msg_type == "conversation.item.input_audio_transcription.delta":
+                    delta = response.get("delta", "")
+                    if delta:
+                        current_full_transcript += delta
+                        # 中間結果として、結合した全文をキューに入れる
+                        self.transcript_queue.put((current_full_transcript, False))
 
-            # 取得されたデータを結合し返却
-            yield b"".join(data)
+                elif msg_type == "conversation.item.input_audio_transcription.completed":
+                    final_transcript = response.get("transcript", "")
+                    if final_transcript:
+                        # completedのテキストを正として更新
+                        current_full_transcript = final_transcript
+                        # 中間結果として、最終的な全文をキューに入れる
+                        self.transcript_queue.put((current_full_transcript, False))
 
-    def _extract_results(self, response):
-        predictions = {}
-        text = None
-        stability = 0.0
-        confidence = 0.0
-        final = False
-        
-        # Google Cloud Speech-to-Text APIのレスポンスの解析
-        if len(response.results) != 0:
-            result = response.results[-1] # 途中結果の部分
-            # 2024.1よりstabilityの値でis_finalを判定するように変更
-            if result.stability < 0.8:
-                conc_trans = ''
-                # 現時刻までのすべての音声認識結果を結合
-                for elm in response.results:
-                    conc_trans += elm.alternatives[0].transcript
-                    
-                # transcript: 書き起こし結果
-                # stability: 結果の安定性
-                # confidence: 信頼スコア
-                # is_final: 発話終端であればTrue
-                predictions = {
-                    'text': conc_trans,
-                    'stability': result.stability,
-                    'confidence': result.alternatives[0].confidence,
-                    'is_final': result.is_final,
-                }
-            else:
-                predictions = predictions = {
-                    'text': '',
-                    'stability': result.stability,
-                    'confidence': result.alternatives[0].confidence,
-                    'is_final': True,
-                }
-            
-        return predictions
-                    
-    def asr_init(self):
-        sys.stderr.write('Start: Streaming ASR\n')
-        self.asr_start_time = time.time()
-        self.resume_asr = False
-        
-        # Google Cloud Speech-to-Textクライアントのインスタンス構築
-        self.client = gspeech.SpeechClient()
-        config = gspeech.RecognitionConfig(
-            encoding=gspeech.RecognitionConfig.AudioEncoding.LINEAR16,
-            sample_rate_hertz=self.rate,
-            language_code=self.language,
-        )
-        # ストリーミング音声認識用の設定
-        self.streaming_config = gspeech.StreamingRecognitionConfig(
-            config=config, interim_results=True,
-            enable_voice_activity_events=True
-        )
+                elif msg_type in ["input_audio_buffer.speech_stopped", "input_audio_buffer.committed"]:
+                    # これまでにテキストがあればCOMMIT信号を送る
+                    if current_full_transcript:
+                        # COMMITを発行するための特別なメッセージをキューに入れる
+                        self.transcript_queue.put(("", True))
+                        # 次の発話のためにリセット
+                        current_full_transcript = ""
 
+            except Exception as e:
+                sys.stderr.write(f"Error processing received message: {e}\n")
+
+    def createIU_ASR(self, token):
+        iu = self.createIU(token, 'asr', RemdisUpdateType.ADD)
+        return iu
+    
     # メッセージ受信用コールバック関数
     def callback(self, ch, method, properties, in_msg):
         in_msg = self.parse_msg(in_msg)
         self.audio_buffer.put(base64.b64decode(in_msg['body'].encode()))
 
+    def stop(self):
+        """Signals all running threads to stop."""
+        sys.stderr.write("Sending stop signal to all threads...\n")
+        self._is_running = False
+
 def main():
     asr = ASR()
-    asr.run()
+    t1, t2, t3 = asr.run()
+    
+    try:
+        while asr._is_running:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        sys.stderr.write("KeyboardInterrupt received. Shutting down gracefully...\n")
+    finally:
+        asr.stop()
+        t1.join()
+        t2.join()
+        t3.join()
+        sys.stderr.write("All threads have been joined. Exiting.\n")
 
 if __name__ == '__main__':
     main()

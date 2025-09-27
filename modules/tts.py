@@ -11,6 +11,7 @@ import librosa
 from ttslearn.pretrained import create_tts_engine
 import pyopenjtalk
 from base import RemdisModule, RemdisUpdateType
+from logger import logger
 
 import torch
 device = torch.device("cpu")
@@ -84,6 +85,8 @@ class TTS(RemdisModule):
 
             # 入力バッファから受信したIUを取得
             in_msg = self.input_iu_buffer.get(block=True)
+            if in_msg.get('is_turn_start'):
+                logger.info('音声合成開始')
             output_text = in_msg['body']
             tgt_id = in_msg['id']
             update_type = in_msg['update_type']
@@ -108,6 +111,7 @@ class TTS(RemdisModule):
                 
                 # チャンクに分割して出力バッファに格納
                 t = 0
+                is_first_chunk = True
                 while t <= len(x):
                     chunk = x[t:t+self.chunk_size]
                     chunk = base64.b64encode(chunk.astype(numpy.int16).tobytes()).decode('utf-8')
@@ -115,6 +119,9 @@ class TTS(RemdisModule):
                                            update_type)
                     snd_iu['data_type'] = 'audio'
                     self.output_iu_buffer.put(snd_iu)
+                    if in_msg.get('is_turn_start') and is_first_chunk:
+                        logger.info('音声再生開始')
+                        is_first_chunk = False
                     t += self.chunk_size
             else:
                 # テキストがない場合も処理を実施

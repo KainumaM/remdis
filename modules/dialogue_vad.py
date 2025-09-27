@@ -195,6 +195,8 @@ class Dialogue(RemdisModule):
 
         # 生成内容をIUに分割して送信
         conc_response = ''
+        is_first_part = True
+        logger.info('初めの応答断片を受信')
         for part in llm.response: 
             # 表情・動作情報の処理
             expression_and_action = {}
@@ -212,6 +214,9 @@ class Dialogue(RemdisModule):
             if 'phrase' in part:
                 if self.state == 'talking':
                     snd_iu = self.createIU(part['phrase'], 'dialogue', RemdisUpdateType.ADD)
+                    if is_first_part:
+                        snd_iu['is_turn_start'] = True
+                        is_first_part = False # 2回目以降はフラグを付けないようにする
                     self.printIU(snd_iu)
                     self.publish(snd_iu, 'dialogue')
                     self.output_iu_buffer.append(snd_iu)

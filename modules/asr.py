@@ -9,6 +9,7 @@ import threading
 import base64
 
 from base import RemdisModule, RemdisUpdateType
+from logger import logger
 
 STREAMING_LIMIT = 240  # 4 minutes
 
@@ -133,6 +134,7 @@ class ASR(RemdisModule):
                             #self.current_output = []
                             # 送信用バッファに格納
                             iu_buffer.append(output_iu)
+                            logger.info('音声認識完了')
 
                     # 発出するトークンが存在する場合の処理        
                     for i, token in enumerate(new_tokens):
@@ -141,6 +143,7 @@ class ASR(RemdisModule):
                         if eou:
                             # 発話終端であればCOMMITに設定
                             output_iu['update_type'] = RemdisUpdateType.COMMIT
+                            logger.info('音声認識完了')
                         else:
                             self.current_output.append(output_iu)
 

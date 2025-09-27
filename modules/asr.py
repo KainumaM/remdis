@@ -11,6 +11,7 @@ import asyncio
 import websockets
 import json
 from base import RemdisModule, RemdisUpdateType
+from logger import logger
 
 STREAMING_LIMIT = 240  # 4 minutes
 
@@ -116,6 +117,7 @@ class ASR(RemdisModule):
                     # 送信バッファに格納
                     iu_buffer.append(output_iu)
                     #self.current_output = []
+                    logger.info('音声認識完了')
                 else:
                     for token in new_tokens:
                         output_iu = self.createIU_ASR(token)

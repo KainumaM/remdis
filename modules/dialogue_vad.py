@@ -255,7 +255,10 @@ class Dialogue(RemdisModule):
     # 音声認識結果受信用のコールバック
     def callback_asr(self, ch, method, properties, in_msg):
         in_msg = self.parse_msg(in_msg)
-        self.input_iu_buffer.put(in_msg)
+        if in_msg['update_type'] == RemdisUpdateType.COMMIT:
+            self.event_queue.put('ASR_COMMIT')
+        else:
+            self.input_iu_buffer.put(in_msg)
             
     # 音声合成結果受信用のコールバック
     def callback_tts(self, ch, method, properties, in_msg):

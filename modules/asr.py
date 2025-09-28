@@ -177,7 +177,7 @@ class ASR(RemdisModule):
                     "type": "server_vad",
                     "threshold": 0.3,
                     "prefix_padding_ms": 300,
-                    "silence_duration_ms": 800,
+                    "silence_duration_ms": 500,
                 },
                 "input_audio_noise_reduction": {
                     "type": "near_field"
@@ -229,18 +229,10 @@ class ASR(RemdisModule):
                 elif msg_type == "conversation.item.input_audio_transcription.completed":
                     final_transcript = response.get("transcript", "")
                     if final_transcript:
+                        # 最終的な全文をキューに入れ、完了フラグを渡す
+                        self.transcript_queue.put((final_transcript, True))
                         # completedのテキストを正として更新
                         current_full_transcript = final_transcript
-                        # 中間結果として、最終的な全文をキューに入れる
-                        self.transcript_queue.put((current_full_transcript, False))
-
-                elif msg_type in ["input_audio_buffer.speech_stopped", "input_audio_buffer.committed"]:
-                    # これまでにテキストがあればCOMMIT信号を送る
-                    if current_full_transcript:
-                        # COMMITを発行するための特別なメッセージをキューに入れる
-                        self.transcript_queue.put(("", True))
-                        # 次の発話のためにリセット
-                        current_full_transcript = ""
 
             except Exception as e:
                 sys.stderr.write(f"Error processing received message: {e}\n")

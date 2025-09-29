@@ -262,8 +262,7 @@ class Dialogue(RemdisModule):
         in_msg = self.parse_msg(in_msg)
         if in_msg['update_type'] == RemdisUpdateType.COMMIT:
             self.event_queue.put('ASR_COMMIT')
-        else:
-            self.input_iu_buffer.put(in_msg)
+        self.input_iu_buffer.put(in_msg)
             
     # 音声合成結果受信用のコールバック
     def callback_tts(self, ch, method, properties, in_msg):
@@ -301,11 +300,11 @@ def main():
     # assistant のパース
     assistant_ids = {
         # assistant_name, chatgpt_id, voicevox_id
-        "asada": ("asst_H4oGlrfP5DXLNiKgJFyNxmxu", 2),
-        "suzuki": ("asst_KUzHQsqsQZKGkcgz2utfAhH0", 2),
-        "okada": ("asst_naZAtdVwSUKvWQdEqwsTxVTn", 41),
-        "sakamoto": ("asst_8c8S3HjgZnRlBocIGYKtgQPn", 41),
-        "tanaka": ("asst_pZJeMVb6yEC6232AGzhMa5Bm", 41),
+        "asada": ("ID", 2),
+        "suzuki": ("ID", 2),
+        "okada": ("ID", 41),
+        "sakamoto": ("ID", 41),
+        "tanaka": ("ID", 41),
     }
     assistant_names = list(assistant_ids.keys())
     parser = argparse.ArgumentParser()

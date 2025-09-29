@@ -65,10 +65,6 @@ class ASR(RemdisModule):
         # ASR用の変数
         self.language = self.config['ASR']['language']
 
-        self.client = None
-        self.streaming_config = None
-        self.responses = []
-
         self.api_key = self.config['ChatGPT']['api_key']
         # 音声データを一時的に保持するためのスレッドセーフなキュー
         self.audio_buffer = queue.Queue()
@@ -110,6 +106,12 @@ class ASR(RemdisModule):
                 # new_tokens: 新しい音声認識結果のトークン系列
                 current_text, is_completed = self.transcript_queue.get(timeout=1.0)
                 iu_buffer, new_tokens = get_text_increment(self, current_text, self.tagger)
+
+                for token in new_tokens:
+                    output_iu = self.createIU_ASR(token)
+                    self.current_output.append(output_iu)
+                    iu_buffer.append(output_iu)
+
                 if is_completed:
                     # is_completedがTRUEの時は空のIUをCOMMITで作成
                     output_iu = self.createIU_ASR('')
@@ -118,12 +120,7 @@ class ASR(RemdisModule):
                     iu_buffer.append(output_iu)
                     #self.current_output = []
                     logger.info('音声認識完了')
-                else:
-                    for token in new_tokens:
-                        output_iu = self.createIU_ASR(token)
-                        self.current_output.append(output_iu)
-                        iu_buffer.append(output_iu)
-
+                    
                 for snd_iu in iu_buffer:
                     self.printIU(snd_iu)
                     self.publish(snd_iu, 'asr')
@@ -216,14 +213,17 @@ class ASR(RemdisModule):
         async for message in websocket:
             try:
                 response = json.loads(message)
+                # デバッグ用
+                #logger.info(f"DEBUG (receiver): サーバーからの生メッセージ -> {message}")
                 msg_type = response.get("type")
 
                 # --- 変更: メッセージのtypeに応じて処理を分岐 ---
                 if msg_type == "conversation.item.input_audio_transcription.delta":
-                    delta = response.get("delta", "")
+                    # Unicodeの置換文字()を空文字に置換して、不正な文字を無視する
+                    delta = response.get("delta", "").replace('\ufffd', '')
                     if delta:
+                        # 不正な文字を取り除いた結果、テキストが残っている場合のみ処理を続ける
                         current_full_transcript += delta
-                        # 中間結果として、結合した全文をキューに入れる
                         self.transcript_queue.put((current_full_transcript, False))
 
                 elif msg_type == "conversation.item.input_audio_transcription.completed":

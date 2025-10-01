@@ -45,7 +45,6 @@
             "label": "Run all tasks (vad_vap)",
             "dependsOn": [
                 "Run input.py",
-                "Run vad_vap.py",
                 "Run asr.py",
                 "Run tts.py",
             ],

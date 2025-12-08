@@ -7,13 +7,13 @@ import argparse
 import recording
 
 from base import RemdisModule, RemdisState, RemdisUtil, RemdisUpdateType
-from llm import ResponseChatGPT
+from llm import ResponseChatGPT, load_prompt
 from logger import logger
 
 
 class Dialogue(RemdisModule):
     def __init__(self, 
-                 assistant_id,
+                 assistant_name,
                  pub_exchanges=['dialogue', 'dialogue2'],
                  sub_exchanges=['asr', 'vap', 'tts', 'bc', 'emo_act']):
         super().__init__(pub_exchanges=pub_exchanges,
@@ -27,8 +27,9 @@ class Dialogue(RemdisModule):
         self.dialogue_history = []
 
         # assistant_id を格納
-        self.assistant_id = assistant_id
+        system_prompt = load_prompt(assistant_name)
 
+        self.llm = ResponseChatGPT(self.config, system_prompt)
 
         # IUおよび応答の処理用バッファ
         self.system_utterance_end_time = 0.0
@@ -186,7 +187,6 @@ class Dialogue(RemdisModule):
             target=self.llm.run,
             args=(
                 time.time(),
-                self.assistant_id,
                 user_utterance,
                 None,
                 self.llm_buffer,
@@ -225,10 +225,13 @@ class Dialogue(RemdisModule):
                     self.output_iu_buffer.append(snd_iu)
                     conc_response += part['phrase']
 
-        # 対話履歴に発話を追加
+        # 対話履歴をログとして出力
         if self.llm.user_utterance:
-            logger.dialogue(f'User   : {self.llm.user_utterance}')
+            logger.dialogue(f'User   : {user_utterance}')
         logger.dialogue(f'System : {conc_response}')
+
+        # 対話履歴に完成したシステムの応答を追加
+        self.llm.add_assistant_response(conc_response)
 
         # 応答生成終了メッセージ
         snd_iu = self.createIU('', 'dialogue', RemdisUpdateType.COMMIT)
@@ -320,9 +323,9 @@ def main():
     )
     args = parser.parse_args()
     print("Selected assistant:", args.assistant)
-    assistant_id, _ = assistant_ids[args.assistant]
+    assistant_name = args.assistant
 
-    dialogue = Dialogue(assistant_id=assistant_id)
+    dialogue = Dialogue(assistant_name=assistant_name)
     dialogue.run()
 
 if __name__ == '__main__':

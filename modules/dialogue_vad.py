@@ -308,6 +308,7 @@ def main():
         "okada": ("ID", 41),
         "sakamoto": ("ID", 41),
         "tanaka": ("ID", 41),
+        "watanabe": ("ID", 41)
     }
     assistant_names = list(assistant_ids.keys())
     parser = argparse.ArgumentParser()

@@ -3,22 +3,33 @@ import json
 import time
 import re
 import string
+import os
 
 import openai
 
 from base import MMDAgentEXLabel
 from logger import logger
 
-class ResponseGenerator:
-    def __init__(self, config, asr_timestamp, assistant_id, thread_id, query):
-        # 設定の読み込み
-        self.max_tokens = config['ChatGPT']['max_tokens']
-        self.max_message_num_in_context = config['ChatGPT']['max_message_num_in_context']
-        self.model = config['ChatGPT']['response_generation_model']
+def load_prompt(prompt_name):
+    #指定された名前のプロンプトファイルを読み込む
+    PROMPT_DIR = "../LLM_prompts"  # プロンプトが格納されているディレクトリ
+    file_path = os.path.join(PROMPT_DIR, f"{prompt_name}.txt")
 
-        # 処理対象のユーザ発話に関する情報
-        self.asr_timestamp = asr_timestamp
-        self.query = query
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            prompt_content = f.read()
+        logger.info(f"プロンプト '{file_path}' を正常に読み込みました。")
+        return prompt_content
+    except FileNotFoundError:
+        logger.info(f"error: プロンプトファイル '{file_path}' が見つかりません。")
+        return None
+    except Exception as e:
+        logger.info(f"error: プロンプトファイル読み込み中に問題が発生しました: {e}")
+        return None
+
+class ResponseGenerator:
+    def __init__(self, config, dialogue_history, query):
+        # 設定の読み込み
 
         # 生成中の応答を保持・パースする変数
         self.response_fragment = ''
@@ -26,25 +37,20 @@ class ResponseGenerator:
     
         self.in_metadata = False
 
-        # 新しいユーザ発話が存在せず自ら発話する場合のプロンプトを対話文脈に追加
-        if query == None or query == '':
-           query = "(沈黙中)"
-
         logger.info(f'Call ChatGPT: {query=}')
 
-        # スレッドにユーザ発話を追加
-        openai.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=query,
+        # Ollamaクライアントの初期化
+        self.client = openai.OpenAI(
+            base_url = 'http://localhost:11434/v1',
+            api_key = 'ollama',
         )
 
         # ストリーミングリクエストの開始
-        self.stream = openai.beta.threads.runs.create(
-            assistant_id=assistant_id,
-            thread_id=thread_id,
+        self.stream = self.client.chat.completions.create(
+            model = 'llama3:8b',
+            messages = dialogue_history,
             stream=True,
-            max_completion_tokens=self.max_tokens
+           max_tokens=config['ChatGPT']['max_tokens']
         )
     
     # Dialogueのsend_response関数で呼び出され，応答の断片を順次返す
@@ -72,15 +78,10 @@ class ResponseGenerator:
             }
   
         # ChatGPTの応答を順次パースして返す
-        for event in self.stream:
-            if event.event == "thread.message.delta" and event.data.delta.content:
-                new_token = event.data.delta.content[0].text.value
-
-                # 応答の断片を追加
-                if new_token is not None:
-                    new_token = new_token.strip()
-                    self.response_fragment += new_token
-
+        for chunk in self.stream:
+            new_token = chunk.choices[0].delta.content
+            if new_token:
+                self.response_fragment += new_token
                 logger.info(f'self.response_fragment: {self.response_fragment}, new_token: {new_token=}')
 
                 if self.in_metadata: # 表情・動作情報の出力中
@@ -90,19 +91,28 @@ class ResponseGenerator:
                         self.in_metadata = False
                         return _parse_split(parts[0])
 
-                else: # システム発話の出力中
-                    splits = self.punctuation_pattern.split(self.response_fragment, 1)
-                    self.response_fragment = splits[-1]
-                    if len(splits) == 2:
-                        return {"phrase": splits[0]}
-                        
-                    if "<" in self.response_fragment: # システム発話が完全に出力された
+                else:
+                    match = self.punctuation_pattern.search(self.response_fragment)
+                    if match:
+                        # 句読点がある場合
+                        parts = self.response_fragment.split(match.group(0), 1)
+                        self.response_fragment = parts[1]
+                        return {"phrase": parts[0]}
+
+                    if "<" in self.response_fragment:
                         parts = self.response_fragment.split("<", 1)
+                        if parts[0]: # <の前にテキストがある場合
+                            self.response_fragment = "<" + parts[1]
+                            return {"phrase": parts[0]}
                         self.response_fragment = parts[1]
                         self.in_metadata = True
-            
-            elif event.event == "thread.message.completed":
-                self.in_metadata = False
+                            
+        # ストリームの最後に残った断片を返す
+        if self.response_fragment:
+            fragment_to_return = self.response_fragment
+            self.response_fragment = ""
+            if not self.in_metadata and fragment_to_return.strip():
+                 return {"phrase": fragment_to_return}
 
         raise StopIteration
    
@@ -111,32 +121,39 @@ class ResponseGenerator:
         return self
 
 class ResponseChatGPT():
-    def __init__(self, config):
+    def __init__(self, config, system_prompt):
         self.config = config
+        self.system_prompt = system_prompt
 
-        # 設定の読み込み
-        openai.api_key = config['ChatGPT']['api_key']
+        self.dialogue_history = [{"role": "system", "content": self.system_prompt}]
 
         # 入力されたユーザ発話に関する情報を保持する変数
         self.user_utterance = ''
         self.response = ''
         self.last_asr_iu_id = ''
         self.asr_time = 0.0
-
-        # threadの初期化と対話履歴の追加
-        self.thread_id = openai.beta.threads.create().id
     
     # ChatGPTの呼び出しを開始
-    def run(self, asr_timestamp, assistant_id, user_utterance, last_asr_iu_id, parent_llm_buffer):
+    def run(self, asr_timestamp, user_utterance, last_asr_iu_id, parent_llm_buffer):
         self.user_utterance = user_utterance
         self.last_asr_iu_id = last_asr_iu_id
         self.asr_time = asr_timestamp
 
-        # ChataGPTを呼び出して応答の生成を開始
-        self.response = ResponseGenerator(self.config, asr_timestamp, assistant_id, self.thread_id, user_utterance)
+        if user_utterance:
+            # 対話履歴に追加
+            self.dialogue_history.append({"role": "user", "content": user_utterance})
+        
 
-        # 自身をDialogueモジュールが持つLLMバッファに追加
+        # Generaterを対話履歴で初期化
+        self.response = ResponseGenerator(self.config, self.dialogue_history, user_utterance)
         parent_llm_buffer.put(self)
+
+    # システム応答を対話履歴に追加
+    def add_assistant_response(self, full_response):
+        # メタデータ（<...>）を除外して履歴に追加
+        cleaned_response = re.sub(r'<[^>]*>', '', full_response)
+        if cleaned_response:
+             self.dialogue_history.append({"role": "assistant", "content": full_response})
 
 import threading
 import queue

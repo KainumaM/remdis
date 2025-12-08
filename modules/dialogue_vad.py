@@ -200,6 +200,7 @@ class Dialogue(RemdisModule):
         is_first_part = True
         logger.info('初めの応答断片を受信')
         for part in self.llm.response: 
+            #logger.info(f'[DEBUG]Received part from LLM stream: {part}') 
             # 表情・動作情報の処理
             expression_and_action = {}
             if 'expression' in part and part['expression'] != 'normal':

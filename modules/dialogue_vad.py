@@ -50,6 +50,9 @@ class Dialogue(RemdisModule):
         # 受信したIUを保持しておく変数
         self.iu_memory = []
 
+        #ResponseChatGPTのインスタンスを生成
+        self.llm = ResponseChatGPT(self.config)
+
     # メインループ
     def run(self):
         # 音声認識結果受信スレッド
@@ -170,7 +173,7 @@ class Dialogue(RemdisModule):
             return
         
         # 会話ターン数を出力し、録画終了
-        if user_utterance.strip() == "終了":
+        if user_utterance.strip() == "終了。":
             print("会話を終了します。")
             logger.dialogue("会話ターン数: " + str(self.turn_taking_count) + "\n")
             time.sleep(1)
@@ -179,9 +182,8 @@ class Dialogue(RemdisModule):
         self.turn_taking_count += 1
     
         # 応答生成
-        llm = ResponseChatGPT(self.config)
         t = threading.Thread(
-            target=llm.run,
+            target=self.llm.run,
             args=(
                 time.time(),
                 self.assistant_id,
@@ -197,7 +199,8 @@ class Dialogue(RemdisModule):
         conc_response = ''
         is_first_part = True
         logger.info('初めの応答断片を受信')
-        for part in llm.response: 
+        for part in self.llm.response: 
+            #logger.info(f'[DEBUG]Received part from LLM stream: {part}') 
             # 表情・動作情報の処理
             expression_and_action = {}
             if 'expression' in part and part['expression'] != 'normal':
@@ -223,8 +226,8 @@ class Dialogue(RemdisModule):
                     conc_response += part['phrase']
 
         # 対話履歴に発話を追加
-        if llm.user_utterance:
-            logger.dialogue(f'User   : {llm.user_utterance}')
+        if self.llm.user_utterance:
+            logger.dialogue(f'User   : {self.llm.user_utterance}')
         logger.dialogue(f'System : {conc_response}')
 
         # 応答生成終了メッセージ
@@ -300,11 +303,12 @@ def main():
     # assistant のパース
     assistant_ids = {
         # assistant_name, chatgpt_id, voicevox_id
-        "asada": ("asst_H4oGlrfP5DXLNiKgJFyNxmxu", 2),
-        "suzuki": ("asst_KUzHQsqsQZKGkcgz2utfAhH0", 2),
-        "okada": ("asst_naZAtdVwSUKvWQdEqwsTxVTn", 41),
-        "sakamoto": ("asst_8c8S3HjgZnRlBocIGYKtgQPn", 41),
-        "tanaka": ("asst_pZJeMVb6yEC6232AGzhMa5Bm", 41),
+        "asada": ("ID", 2),
+        "suzuki": ("ID", 2),
+        "okada": ("ID", 41),
+        "sakamoto": ("ID", 41),
+        "tanaka": ("ID", 41),
+        "watanabe": ("ID", 41)
     }
     assistant_names = list(assistant_ids.keys())
     parser = argparse.ArgumentParser()

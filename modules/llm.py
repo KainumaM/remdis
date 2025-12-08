@@ -73,9 +73,10 @@ class ResponseGenerator:
   
         # ChatGPTの応答を順次パースして返す
         for event in self.stream:
+            #logger.info(f'--- RECEIVED STREAM EVENT: {event.event}, Data Keys: {event.data.keys() if hasattr(event.data, "keys") else "N/A"} ---')
             if event.event == "thread.message.delta" and event.data.delta.content:
                 new_token = event.data.delta.content[0].text.value
-
+                #logger.info(f'--- RAW API TOKEN RECEIVED: "{new_token}" ---')
                 # 応答の断片を追加
                 if new_token is not None:
                     new_token = new_token.strip()

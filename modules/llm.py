@@ -38,19 +38,21 @@ class ResponseGenerator:
         self.in_metadata = False
 
         logger.info(f'Call ChatGPT: {query=}')
+        llm_url = 'http://192.168.1.161:8000/v1'
+        model_name = 'meta-llama/Llama-3.1-8B-Instruct'
 
-        # Ollamaクライアントの初期化
+        # クライアントの初期化
         self.client = openai.OpenAI(
-            base_url = 'http://localhost:11434/v1',
-            api_key = 'ollama',
+            base_url = llm_url,
+            api_key = 'dummy',
         )
 
         # ストリーミングリクエストの開始
         self.stream = self.client.chat.completions.create(
-            model = 'llama3:8b',
+            model = model_name,
             messages = dialogue_history,
             stream=True,
-           max_tokens=config['ChatGPT']['max_tokens']
+            max_tokens=config['ChatGPT']['max_tokens']
         )
     
     # Dialogueのsend_response関数で呼び出され，応答の断片を順次返す
@@ -133,7 +135,7 @@ class ResponseChatGPT():
         self.last_asr_iu_id = ''
         self.asr_time = 0.0
     
-    # ChatGPTの呼び出しを開始
+    # LLMの呼び出しを開始
     def run(self, asr_timestamp, user_utterance, last_asr_iu_id, parent_llm_buffer):
         self.user_utterance = user_utterance
         self.last_asr_iu_id = last_asr_iu_id

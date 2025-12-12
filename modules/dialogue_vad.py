@@ -51,9 +51,6 @@ class Dialogue(RemdisModule):
         # 受信したIUを保持しておく変数
         self.iu_memory = []
 
-        #ResponseChatGPTのインスタンスを生成
-        self.llm = ResponseChatGPT(self.config)
-
     # メインループ
     def run(self):
         # 音声認識結果受信スレッド
@@ -306,12 +303,12 @@ def main():
     # assistant のパース
     assistant_ids = {
         # assistant_name, chatgpt_id, voicevox_id
-        "asada": ("ID", 2),
-        "suzuki": ("ID", 2),
-        "okada": ("ID", 41),
-        "sakamoto": ("ID", 41),
-        "tanaka": ("ID", 41),
-        "watanabe": ("ID", 41)
+        "asada": ("asst_oozE5HIbrQaZe5LNZCoDaIhS", 2),
+        "suzuki": ("asst_2OSgcRIIhVL7LyMGmKLEJTaB", 2),
+        "okada": ("asst_XdUu0ssEkobxdryg3iqAD0jn", 41),
+        "sakamoto": ("asst_ybg4RosICyIVvDXAJkUquN8g", 41),
+        "tanaka": ("asst_TqyNUaGbT6xlFOCluFAeafJn", 41),
+        "watanabe": ("asst_qMrPz384nUzoe6vzkiP0m1Bi", 41),
     }
     assistant_names = list(assistant_ids.keys())
     parser = argparse.ArgumentParser()

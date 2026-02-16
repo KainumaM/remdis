@@ -28,27 +28,19 @@ def load_prompt(prompt_name):
         return None
 
 class ResponseGenerator:
-    def __init__(self, config, dialogue_history, query):
-        # 設定の読み込み
-
+    def __init__(self, config, dialogue_history, query, client, model_name):
         # 生成中の応答を保持・パースする変数
         self.response_fragment = ''
-        self.punctuation_pattern = re.compile('[、。！？\n]')
+        self.punctuation_pattern = re.compile(r'[、。！？\n,.，．!?]')
+        self.start_tag_pattern = re.compile(r'[<＜]')
+        self.end_tag_pattern = re.compile(r'[>＞]')
     
         self.in_metadata = False
 
         logger.info(f'Call ChatGPT: {query=}')
-        llm_url = 'http://192.168.1.161:8000/v1'
-        model_name = 'meta-llama/Llama-3.1-8B-Instruct'
-
-        # クライアントの初期化
-        self.client = openai.OpenAI(
-            base_url = llm_url,
-            api_key = 'dummy',
-        )
 
         # ストリーミングリクエストの開始
-        self.stream = self.client.chat.completions.create(
+        self.stream = client.chat.completions.create(
             model = model_name,
             messages = dialogue_history,
             stream=True,
@@ -85,30 +77,38 @@ class ResponseGenerator:
             if new_token:
                 self.response_fragment += new_token
                 logger.info(f'self.response_fragment: {self.response_fragment}, new_token: {new_token=}')
+                
+                while self.response_fragment:
+                    if self.in_metadata:
+                        end_match = self.end_tag_pattern.search(self.response_fragment)
+                        if end_match:
+                            parts = self.end_tag_pattern.split(self.response_fragment, 1)
+                            self.response_fragment = parts[1]
+                            self.in_metadata = False
+                            return _parse_split(parts[0])
+                        else:
+                            break
+                    
+                    else:
+                        tag_match = self.start_tag_pattern.search(self.response_fragment)
+                        punct_match = self.punctuation_pattern.search(self.response_fragment)
 
-                if self.in_metadata: # 表情・動作情報の出力中
-                    if ">" in self.response_fragment: # 表情・動作情報が完全に出力された
-                        parts = self.response_fragment.split(">", 1)
-                        self.response_fragment = parts[1]
-                        self.in_metadata = False
-                        return _parse_split(parts[0])
+                        if tag_match and (not punct_match or tag_match.start() < punct_match.start()):
+                            parts = self.start_tag_pattern.split(self.response_fragment, 1)
+                            if parts[0]:
+                                self.response_fragment = tag_match.group(0) + parts[1]
+                                return {"phrase": parts[0]}
+                            self.response_fragment = parts[1]
+                            self.in_metadata = True
+                            continue
+                        elif punct_match:
+                            parts = self.response_fragment.split(punct_match.group(0), 1)
+                            self.response_fragment = parts[1]
+                            return {"phrase": parts[0]+punct_match.group(0)}
+                        else:
+                            # 区切り文字無しのため次のトークンを待つ
+                            break
 
-                else:
-                    match = self.punctuation_pattern.search(self.response_fragment)
-                    if match:
-                        # 句読点がある場合
-                        parts = self.response_fragment.split(match.group(0), 1)
-                        self.response_fragment = parts[1]
-                        return {"phrase": parts[0]}
-
-                    if "<" in self.response_fragment:
-                        parts = self.response_fragment.split("<", 1)
-                        if parts[0]: # <の前にテキストがある場合
-                            self.response_fragment = "<" + parts[1]
-                            return {"phrase": parts[0]}
-                        self.response_fragment = parts[1]
-                        self.in_metadata = True
-                            
         # ストリームの最後に残った断片を返す
         if self.response_fragment:
             fragment_to_return = self.response_fragment
@@ -117,6 +117,7 @@ class ResponseGenerator:
                  return {"phrase": fragment_to_return}
 
         raise StopIteration
+    
    
     # ResponseGeneratorをイテレータ化
     def __iter__(self):
@@ -129,13 +130,42 @@ class ResponseChatGPT():
 
         self.dialogue_history = [{"role": "system", "content": self.system_prompt}]
 
+        llm_url = 'http://192.168.1.161:8000/v1'
+        self.model_name = 'meta-llama/llama-3.1-8B-Instruct'
+        self.client = openai.OpenAI(
+            base_url=llm_url,
+            api_key='dummy',
+        )
+
         # 入力されたユーザ発話に関する情報を保持する変数
         self.user_utterance = ''
         self.response = ''
         self.last_asr_iu_id = ''
         self.asr_time = 0.0
-    
-    # LLMの呼び出しを開始
+
+    def warmup(self):
+        """
+        起動時に1回だけ、system promptのみで最小生成を行いモデルをwarmupする。
+        """
+        try:
+            messages = [{"role": "system", "content": self.system_prompt}]
+
+            stream = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                stream=True,
+                max_tokens=1,
+            )
+
+            # 1チャンクでも受け取ればウォームアップ完了扱い
+            for chunk in stream:
+                _ = getattr(chunk.choices[0].delta, "content", None)
+                break
+
+            logger.info("LLM warmup done.")
+        except Exception as e:
+            logger.info(f"LLM warmup failed: {e}")
+
     def run(self, asr_timestamp, user_utterance, last_asr_iu_id, parent_llm_buffer):
         self.user_utterance = user_utterance
         self.last_asr_iu_id = last_asr_iu_id
@@ -145,9 +175,14 @@ class ResponseChatGPT():
             # 対話履歴に追加
             self.dialogue_history.append({"role": "user", "content": user_utterance})
         
-
         # Generaterを対話履歴で初期化
-        self.response = ResponseGenerator(self.config, self.dialogue_history, user_utterance)
+        self.response = ResponseGenerator(
+            self.config,
+            self.dialogue_history,
+            user_utterance,
+            client=self.client,
+            model_name=self.model_name
+        )
         parent_llm_buffer.put(self)
 
     # システム応答を対話履歴に追加

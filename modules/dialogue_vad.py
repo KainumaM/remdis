@@ -30,6 +30,8 @@ class Dialogue(RemdisModule):
         system_prompt = load_prompt(assistant_name)
 
         self.llm = ResponseChatGPT(self.config, system_prompt)
+        #ダミーリクエストでwarmup
+        self.llm.warmup()
 
         # IUおよび応答の処理用バッファ
         self.system_utterance_end_time = 0.0
@@ -303,12 +305,12 @@ def main():
     # assistant のパース
     assistant_ids = {
         # assistant_name, chatgpt_id, voicevox_id
-        "asada": ("asst_oozE5HIbrQaZe5LNZCoDaIhS", 2),
-        "suzuki": ("asst_2OSgcRIIhVL7LyMGmKLEJTaB", 2),
-        "okada": ("asst_XdUu0ssEkobxdryg3iqAD0jn", 41),
-        "sakamoto": ("asst_ybg4RosICyIVvDXAJkUquN8g", 41),
-        "tanaka": ("asst_TqyNUaGbT6xlFOCluFAeafJn", 41),
-        "watanabe": ("asst_qMrPz384nUzoe6vzkiP0m1Bi", 41),
+        "asada": ("ID", 2),
+        "suzuki": ("ID", 2),
+        "okada": ("ID", 41),
+        "sakamoto": ("ID", 41),
+        "tanaka": ("ID", 41),
+        "watanabe": ("ID", 41),
     }
     assistant_names = list(assistant_ids.keys())
     parser = argparse.ArgumentParser()

@@ -227,10 +227,10 @@ class Dialogue(RemdisModule):
         # 対話履歴をログとして出力
         if self.llm.user_utterance:
             logger.dialogue(f'User   : {user_utterance}')
-        logger.dialogue(f'System : {conc_response}')
+        logger.dialogue(f'System : {self.llm.response.full_raw_text}')
 
         # 対話履歴に完成したシステムの応答を追加
-        self.llm.add_assistant_response(conc_response)
+        self.llm.add_assistant_response(self.llm.response.full_raw_text)
 
         # 応答生成終了メッセージ
         snd_iu = self.createIU('', 'dialogue', RemdisUpdateType.COMMIT)

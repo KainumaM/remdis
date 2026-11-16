@@ -30,6 +30,7 @@ def load_prompt(prompt_name):
 class ResponseGenerator:
     def __init__(self, config, dialogue_history, query, client, model_name):
         # 生成中の応答を保持・パースする変数
+        self.full_raw_text = ''
         self.response_fragment = ''
         self.punctuation_pattern = re.compile(r'[、。！？\n,.，．!?]')
         self.start_tag_pattern = re.compile(r'[<＜]')
@@ -76,14 +77,15 @@ class ResponseGenerator:
             new_token = chunk.choices[0].delta.content
             if new_token:
                 self.response_fragment += new_token
-                logger.info(f'self.response_fragment: {self.response_fragment}, new_token: {new_token=}')
-                
+                self.full_raw_text += new_token
+
+                logger.info(f'self.response_fragment: {self.response_fragment}, new_token: {new_token=}')                
                 while self.response_fragment:
                     if self.in_metadata:
                         end_match = self.end_tag_pattern.search(self.response_fragment)
                         if end_match:
                             parts = self.end_tag_pattern.split(self.response_fragment, 1)
-                            self.response_fragment = parts[1]
+                            self.response_fragment = parts[1].lstrip()
                             self.in_metadata = False
                             return _parse_split(parts[0])
                         else:
@@ -95,16 +97,24 @@ class ResponseGenerator:
 
                         if tag_match and (not punct_match or tag_match.start() < punct_match.start()):
                             parts = self.start_tag_pattern.split(self.response_fragment, 1)
-                            if parts[0]:
-                                self.response_fragment = tag_match.group(0) + parts[1]
-                                return {"phrase": parts[0]}
                             self.response_fragment = parts[1]
                             self.in_metadata = True
+
+                            phrase = parts[0].strip()
+                            if phrase:
+                                return {"phrase": phrase}
+                            
                             continue
+
                         elif punct_match:
                             parts = self.response_fragment.split(punct_match.group(0), 1)
                             self.response_fragment = parts[1]
-                            return {"phrase": parts[0]+punct_match.group(0)}
+
+                            phrase = parts[0].strip()
+                            if phrase:
+                                return {"phrase": phrase + punct_match.group(0)}
+
+                            continue
                         else:
                             # 区切り文字無しのため次のトークンを待つ
                             break
@@ -130,8 +140,8 @@ class ResponseChatGPT():
 
         self.dialogue_history = [{"role": "system", "content": self.system_prompt}]
 
-        llm_url = 'http://192.168.1.161:8000/v1'
-        self.model_name = 'meta-llama/llama-3.1-8B-Instruct'
+        llm_url = 'http://192.168.1.160:8000/v1'
+        self.model_name = 'Qwen/Qwen2.5-14B-Instruct-GPTQ-Int8'
         self.client = openai.OpenAI(
             base_url=llm_url,
             api_key='dummy',
@@ -155,6 +165,7 @@ class ResponseChatGPT():
                 messages=messages,
                 stream=True,
                 max_tokens=1,
+                temperature=0.5
             )
 
             # 1チャンクでも受け取ればウォームアップ完了扱い

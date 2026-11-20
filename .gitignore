@@ -4,3 +4,5 @@
 prompt/
 logs/
 kurono/
+config/
+LLM_prompts/
